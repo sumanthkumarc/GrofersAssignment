@@ -4,6 +4,8 @@ from abc import abstractmethod, ABC
 import requests
 import sys
 import json
+from time import sleep
+from redislite import Redis
 
 
 KV_URL = "http://localhost:8080"
@@ -35,9 +37,6 @@ def api_request(url, method="get", body={}, params={}, headers= {}):
 
     elif method == "post":
         try:
-            print(body)
-            print(headers)
-            print(url)
             resp = requests.post(url, json=json.dumps(body), headers=headers)
         except Exception as e:
             print(f"Unable to contact server: {e}")
@@ -87,7 +86,7 @@ class SubCommand(ABC):
         pass
 
     @abstractmethod
-    def process(self, sub_command, args):
+    def handler(self, sub_command, args):
         """ Method to handle the sub-commands """
         pass
 
@@ -107,7 +106,7 @@ class GetCommand(SubCommand):
             help="Key name to fetch the value"
         )
 
-    def process(self, sub_command, args):
+    def handler(self, sub_command, args):
         if sub_command == "get":
             url = f"{KV_URL}/key/{args.key}"
             data = api_request(url)
@@ -134,7 +133,7 @@ class SetCommand(SubCommand):
             help="Value for the key to set"
         )
 
-    def process(self, sub_command, args):
+    def handler(self, sub_command, args):
         if sub_command == "set":
             url = f"{KV_URL}/key"
             body = {
@@ -158,9 +157,18 @@ class WatchCommand(SubCommand):
     def add_sub_command(self):
         self.sub_parser.add_parser("watch", help="Use watch to watch updates to any keys in kv store.")
 
-    def process(self, sub_command, args):
+    def handler(self, sub_command, args):
         if sub_command == "watch":
-            pass
+            # We are connecting as consumer to Redis pubsub channel here. In production we don't want to expose our redis. It's best to
+            # register client socket connection and push to socket when we get an key update event on Redis. This seems fairly out of scope
+            # for this assignemnt.
+            with Redis("/tmp/redis/data.db") as conn:
+                pubsub = conn.pubsub()
+                pubsub.subscribe("key-update")
+                while True:
+                    data = pubsub.get_message()
+                    data and print(data["data"])
+                    sleep(1)
 
 
 if __name__ == "__main__":
@@ -168,6 +176,7 @@ if __name__ == "__main__":
     parser = p.get_parser()
     GetCommand(p)
     SetCommand(p)
+    WatchCommand(p)
 
     # show help if no sub commands are provided.
     if len(sys.argv) == 1:
@@ -177,5 +186,5 @@ if __name__ == "__main__":
     arg_data = parser.parse_known_args()[0]
     cmd = arg_data.subcommand
     for _ in p.sub_command_classes:
-        _.process(cmd, arg_data)
+        _.handler(cmd, arg_data)
 

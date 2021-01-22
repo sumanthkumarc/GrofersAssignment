@@ -1,12 +1,10 @@
-from helpers.redis_client import RedisClient
-from flask import Flask, request, Response
-import os
+from api import app, rc
+from flask import request, Response
 import json
+import os
+
 
 port = int(os.environ.get('PORT', 8080))
-db_path = os.environ.get('DB_PATH', "/tmp/redis/data.db")
-rc = RedisClient(db_path)
-app = Flask(__name__)
 
 
 @app.route('/key/<name>', methods = ['GET', 'DELETE'])
@@ -37,7 +35,7 @@ def set_handler():
         # @todo sanitise the value, to remove sql injection etc
 
         if data.get("name", None) and data.get("value", None):
-            rc.set_key(data["name"], data["value"])
+            rc.set_key(data["name"], data["value"], publish_update=True)
             val = rc.get_key(data["name"])
             return {
                 "name": data["name"],
@@ -51,5 +49,10 @@ def set_handler():
         return Response(status=405)
 
 
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=port)
+@app.route('/', methods=["GET"])
+def test():
+    return "OK"
+
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=port)
