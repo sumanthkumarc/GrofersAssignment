@@ -160,8 +160,8 @@ class WatchCommand(SubCommand):
     def handler(self, sub_command, args):
         if sub_command == "watch":
             # We are connecting as consumer to Redis pubsub channel here. In production we don't want to expose our redis. It's best to
-            # register client socket connection and push to socket when we get an key update event on Redis. This seems fairly out of scope
-            # for this assignemnt.
+            # register client socket connection and push to socket when we get an key update event on Redis. This seems fairly complex and
+            # out of scope for this assignment.
             with Redis("/tmp/redis/data.db") as conn:
                 pubsub = conn.pubsub()
                 pubsub.subscribe("key-update")
